@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+    id 'kotlin'
+    id 'kotlin-kapt'
+}
+
+dependencies {
+
+    api 'org.jetbrains.kotlin:kotlin-stdlib:1.6.20'
+    api 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.2'
+
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8.toString()
+targetCompatibility = JavaVersion.VERSION_1_8.toString()
+
+sourceSets {
+    main.java.srcDirs += 'src/main/kotlin'
+}

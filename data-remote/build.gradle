@@ -1,0 +1,29 @@
+plugins {
+    id 'java-library'
+    id 'kotlin'
+    id 'kotlin-kapt'
+}
+
+dependencies {
+
+    implementation project(':domain')
+
+    //Retrofit
+    api 'com.squareup.retrofit2:retrofit:2.9.0'
+
+    //Gson
+    api 'com.squareup.retrofit2:converter-gson:2.9.0'
+
+    //LoggingInterceptor
+    api "com.squareup.okhttp3:logging-interceptor:4.9.3"
+
+}
+
+sourceCompatibility = JavaVersion.VERSION_1_8.toString()
+targetCompatibility = JavaVersion.VERSION_1_8.toString()
+
+
+sourceSets {
+    main.java.srcDirs += 'src/main/kotlin'
+    test.java.srcDirs += 'src/test/kotlin'
+}
