@@ -17,6 +17,7 @@ import com.example.domain.models.Repository
 import com.example.domain.models.UserAndFollow
 import com.example.github.R
 import com.example.github.databinding.FragmentHomeBinding
+import com.example.github.utils.getError
 import com.example.github.utils.loadCircular
 import com.google.android.material.snackbar.Snackbar
 import com.google.gson.Gson
@@ -105,6 +106,8 @@ class HomeFragment : Fragment() {
 
                     state.error?.let { error ->
                         Snackbar.make(requireView(), error, Snackbar.LENGTH_LONG).show()
+                        binding.textView2.text = "${error.getError()} \n  Try again"
+
                     }
 
                     //observe user search
@@ -115,7 +118,7 @@ class HomeFragment : Fragment() {
 
                         //fetch data if repo is empty
                         if (state.repositories.isNullOrEmpty() && !state.isLoading) {
-                            val job = lifecycleScope.async {
+                            val job = async {
                                 viewModel.setState(
                                     HomeIntents.SearchUserRespositories(
                                         searchResult.login ?: "github"
@@ -127,7 +130,7 @@ class HomeFragment : Fragment() {
 
                         // fetch followers
                         if (state.userAndFollow == null && !state.isLoading) {
-                            val job = lifecycleScope.async {
+                            val job = async {
                                 viewModel.setState(
                                     HomeIntents.SearchFollowers(
                                         searchResult.login ?: "github"
@@ -136,6 +139,7 @@ class HomeFragment : Fragment() {
                             }
                             jobs.add(job)
                         }
+                        //do jobs asynchronously
                         jobs.awaitAll()
                     }
 
@@ -143,12 +147,16 @@ class HomeFragment : Fragment() {
 
                 //observe repositories search
                 state.repositories?.let { repositories ->
+                    binding.textViewNumRepos.text = repositories.size.toString()
                     repositoriesAdapter.submitList(repositories)
                 }
 
                 //observe user and followers
                 state.userAndFollow?.let { userAndFollowers ->
                     userAndFollow = userAndFollowers
+                    binding.textViewNumFollowers.text = userAndFollowers.users.size.toString()
+                    binding.textViewFollowing.text = userAndFollowers.users.size.toString()
+
                 }
 
                 //observe empty state

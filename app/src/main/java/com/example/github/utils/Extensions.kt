@@ -66,3 +66,10 @@ fun String.dateTimetoText(): String? {
     }
     return convTime
 }
+
+fun String.getError() : String{
+    if (this.contains("hostname")){
+        return "Please check your internet connection"
+    }
+    return this
+}
