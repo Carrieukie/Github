@@ -14,17 +14,18 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.domain.models.Repository
-import com.example.domain.models.SearchResult
 import com.example.domain.models.UserAndFollow
-import com.example.domain.utils.Resource
 import com.example.github.R
 import com.example.github.databinding.FragmentHomeBinding
 import com.example.github.utils.loadCircular
-import com.example.github.utils.snackBar
+import com.google.android.material.snackbar.Snackbar
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 
 @AndroidEntryPoint
@@ -39,6 +40,8 @@ class HomeFragment : Fragment() {
     private val repositoriesAdapter = RepositoriesAdapter(onclick = { onClick(it) })
 
     private lateinit var userAndFollow: UserAndFollow
+
+    private val jobs = mutableListOf<Deferred<Any>>()
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -58,14 +61,30 @@ class HomeFragment : Fragment() {
 
     private fun setUpBindings() {
         binding.apply {
-            textViewFolowerss.setOnClickListener { findNavController().navigate(R.id.action_homeFragment_to_usersFragment,
-                bundleOf("followers" to Gson().toJson(userAndFollow.users))) }
-            textViewNumFollowers.setOnClickListener { findNavController().navigate(R.id.action_homeFragment_to_usersFragment,
-                bundleOf("followers" to Gson().toJson(userAndFollow.users))) }
-            textViewFolowerss.setOnClickListener { findNavController().navigate(R.id.action_homeFragment_to_usersFragment,
-                bundleOf("followers" to Gson().toJson(userAndFollow.users))) }
-            textViewFollowingText.setOnClickListener { findNavController().navigate(R.id.action_homeFragment_to_usersFragment,
-                bundleOf("followers" to Gson().toJson(userAndFollow.users))) }
+            textViewFolowerss.setOnClickListener {
+                findNavController().navigate(
+                    R.id.action_homeFragment_to_usersFragment,
+                    bundleOf("followers" to Gson().toJson(userAndFollow.users))
+                )
+            }
+            textViewNumFollowers.setOnClickListener {
+                findNavController().navigate(
+                    R.id.action_homeFragment_to_usersFragment,
+                    bundleOf("followers" to Gson().toJson(userAndFollow.users))
+                )
+            }
+            textViewFollowing.setOnClickListener {
+                findNavController().navigate(
+                    R.id.action_homeFragment_to_usersFragment,
+                    bundleOf("following" to Gson().toJson(userAndFollow.users))
+                )
+            }
+            textViewFollowingText.setOnClickListener {
+                findNavController().navigate(
+                    R.id.action_homeFragment_to_usersFragment,
+                    bundleOf("following" to Gson().toJson(userAndFollow.users))
+                )
+            }
 
         }
     }
@@ -78,102 +97,72 @@ class HomeFragment : Fragment() {
     }
 
     private fun observeUiState() {
-        viewModel.uiState.observe(viewLifecycleOwner) { state ->
-            when (state) {
-                is Resource.Loading -> {
-                    binding.progressBar.isVisible = true
-                    binding.layoutEmpty.isVisible = false
-                }
-                is Resource.Empty -> {
-                    handleEmptyState()
-                }
-                is Resource.Error -> {
-                    handleSuccess(state)
-                    handleErrorState(state.error)
-                    when (state.data) {
-                        is SearchResult -> {
-                            binding.textViewUsername.text = (state.data as SearchResult).login
-                            binding.textViewBio.text = (state.data as SearchResult).bio
-                            binding.imageViewProfile.loadCircular((state.data as SearchResult).avatarUrl ?: "")
-                            lifecycleScope.launch {
-                                viewModel.setState(HomeIntents.SearchUserRespositories((state.data as SearchResult).login ?: ""))
-                                viewModel.setState(HomeIntents.SearchFollowers((state.data as SearchResult).login ?: ""))
-                            }
-                        }
-                    }                }
-                is Resource.Success -> {
-                    handleSuccess(state.data)
-                }
-            }
-        }
-        lifecycleScope.launch {
-            viewModel.setState(HomeIntents.SearchUser("github"))
-        }
+        lifecycleScope.launchWhenCreated {
+            viewModel.uiState.collectLatest { state ->
+                binding.apply {
 
-    }
+                    progressBar.isVisible = state.isLoading
 
-    private fun handleEmptyState() {
-//        binding.animationView.setAnimation(R.raw.search)
-        binding.progressBar.isVisible = false
-    }
-
-    private fun handleSuccess(data: Any?) {
-        binding.apply {
-            progressBar.isVisible = false
-            layoutEmpty.isVisible = false
-            layoutContent.isVisible = true
-            when (data) {
-                is SearchResult -> {
-                    textViewUsername.text = data.login
-                    textViewBio.text = data.bio
-                    imageViewProfile.loadCircular(data.avatarUrl ?: "")
-                    lifecycleScope.launch {
-                        viewModel.setState(HomeIntents.SearchUserRespositories(data.login ?: ""))
-                        viewModel.setState(HomeIntents.SearchFollowers(data.login ?: ""))
+                    state.error?.let { error ->
+                        Snackbar.make(requireView(), error, Snackbar.LENGTH_LONG).show()
                     }
+
+                    //observe user search
+                    state.searchResult?.let { searchResult ->
+                        textViewUsername.text = searchResult.login
+                        textViewBio.text = searchResult.bio
+                        imageViewProfile.loadCircular(searchResult.avatarUrl ?: "")
+
+                        //fetch data if repo is empty
+                        if (state.repositories.isNullOrEmpty() && !state.isLoading) {
+                            val job = lifecycleScope.async {
+                                viewModel.setState(
+                                    HomeIntents.SearchUserRespositories(
+                                        searchResult.login ?: "github"
+                                    )
+                                )
+                            }
+                            jobs.add(job)
+                        }
+
+                        // fetch followers
+                        if (state.userAndFollow == null && !state.isLoading) {
+                            val job = lifecycleScope.async {
+                                viewModel.setState(
+                                    HomeIntents.SearchFollowers(
+                                        searchResult.login ?: "github"
+                                    )
+                                )
+                            }
+                            jobs.add(job)
+                        }
+                        jobs.awaitAll()
+                    }
+
                 }
 
-                is List<*> -> {
-                    val repository = data.filterIsInstance<Repository>()
-                    repositoriesAdapter.submitList(repository)
+                //observe repositories search
+                state.repositories?.let { repositories ->
+                    repositoriesAdapter.submitList(repositories)
                 }
 
-                is UserAndFollow -> {
-                    userAndFollow = data
-                    textViewFollowing.text = "${userAndFollow.users.size}"
-                    textViewNumFollowers.text = "${userAndFollow.users.size}"
-                    Timber.tag(TAG).i("user and follow $data")
+                //observe user and followers
+                state.userAndFollow?.let { userAndFollowers ->
+                    userAndFollow = userAndFollowers
                 }
 
-                (data == null) ->{
-
+                //observe empty state
+                state.apply {
+                    val isEmpty = !isLoading && searchResult == null && userAndFollow == null && repositories == null
+                    binding.layoutContent.isVisible = !isEmpty
+                    binding.layoutEmpty.isVisible = isEmpty
                 }
 
-                else -> {
-                    Timber.tag(TAG).e(data.toString())
-                    handleErrorState(Throwable("Something went wrong"))
-                }
             }
 
         }
-
     }
 
-    private fun handleErrorState(error: Throwable?) {
-        binding.progressBar.isVisible = false
-        binding.layoutContent.isVisible = false
-        val errorMessage = error?.localizedMessage ?: "Something went wrong"
-        snackBar(errorMessage)
-        when {
-            errorMessage.contains("hostname") -> {
-                binding.animationView.setAnimation(R.raw.no_internet)
-            }
-            else -> {
-                binding.animationView.apply {
-                }
-            }
-        }
-    }
 
     private fun onClick(repository: Repository) {
         findNavController().navigate(
@@ -207,7 +196,13 @@ class HomeFragment : Fragment() {
 
             override fun onQueryTextSubmit(query: String?): Boolean {
                 Log.i("onQueryTextSubmit", query ?: "")
-                    viewModel.setState(HomeIntents.SearchUser((query?: "github").toLowerCase().trim()))
+                lifecycleScope.launch {
+                    viewModel.setState(
+                        HomeIntents.SearchUser(
+                            (query ?: "github").toLowerCase().trim()
+                        )
+                    )
+                }
                 return true
             }
         }

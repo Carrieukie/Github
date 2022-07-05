@@ -22,7 +22,7 @@
             app:layout_constraintTop_toTopOf="parent"
             app:lottie_autoPlay="true"
             app:lottie_loop="false"
-            app:lottie_rawRes="@raw/oops" />
+            app:lottie_url="https://assets7.lottiefiles.com/dotlotties/dlf10_mqvglvjs.lottie"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
@@ -30,7 +30,7 @@
         android:id="@+id/layout_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone"
+        android:visibility="visible"
         tools:context=".ui.fragments.home.HomeFragment">
 
 

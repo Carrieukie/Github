@@ -40,12 +40,26 @@ class UsersFragment : Fragment() {
             val adapter = UsersList(onclick = {
 
             })
+
             recyclerView.adapter = adapter
             recyclerView.layoutManager = LinearLayoutManager(requireContext())
             val follower = arguments?.getString("followers")
-            val type  = object : TypeToken<List<User>>() {}.type
-            val followers = Gson().fromJson<List<User>>(follower,type)
-            adapter.submitList(followers)
+            val following = arguments?.getString("following")
+
+            if (follower != null){
+                textView15.text = "Followers"
+                val type  = object : TypeToken<List<User>>() {}.type
+                val followers = Gson().fromJson<List<User>>(follower,type)
+                adapter.submitList(followers.shuffled())
+            }
+            if (following != null){
+                textView15.text = "Following"
+                val type  = object : TypeToken<List<User>>() {}.type
+                val followers = Gson().fromJson<List<User>>(following,type)
+                adapter.submitList(followers.shuffled())
+            }
+
+
         }
     }
 

@@ -1,13 +1,14 @@
 package com.example.github.ui.fragments.home
 
-import androidx.lifecycle.*
+import androidx.lifecycle.ViewModel
 import com.example.domain.usecases.*
 import com.example.domain.utils.Resource
 import com.example.domain.utils.networkBoundResource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
@@ -25,31 +26,123 @@ class HomeViewModel @Inject constructor(
     private val getFollowersFromCacheBaseUseCase: GetFollowersFromCacheUseCase
 ): ViewModel() {
 
-    private var _uiState = MutableLiveData<Resource<*>>(Resource.Empty(null))
+    private var _uiState = MutableStateFlow(GitHubState())
     val uiState get()  = _uiState
 
-    fun setState(homeIntents: HomeIntents){
-        viewModelScope.launch {
+    suspend fun setState(homeIntents: HomeIntents){
+
+        Timber.tag(TAG).i("Set State is : $homeIntents and search value is ${homeIntents.params}")
+
             when(homeIntents){
                 is HomeIntents.SearchUser -> {
-                    getUser(homeIntents.params as String).collect{
-                        _uiState.value = it
+
+                    Timber.tag(TAG).i("Making a github search")
+
+                    getUser(homeIntents.params as String).collect{ search ->
+                        when(search){
+                            is Resource.Error -> {
+
+                                Timber.tag(TAG).e("Error occurred when seaching for a user ${search.error?.localizedMessage}")
+
+                                uiState.value = uiState.value.copy(
+                                    error = search.error?.localizedMessage,
+                                    searchResult = search.data,
+                                    isLoading = false
+                                )
+                            }
+
+                            is Resource.Loading -> {
+
+                                uiState.value = uiState.value.copy(
+                                    isLoading = true,
+                                    repositories = null,
+                                    userAndFollow = null,
+                                    error = null
+                                )
+                            }
+                            is Resource.Success -> {
+
+                                Timber.tag(TAG).i("Search success value is : ${search.data}")
+
+                                uiState.value = uiState.value.copy(
+                                    isLoading = false,
+                                    searchResult = search.data
+                                )
+                            }
+                            else -> {
+                                uiState.value = uiState.value.copy(
+                                    isLoading = false,
+                                    error = "Something Unexpected happened"
+                                )
+                            }
+                        }
                     }
                 }
                 is HomeIntents.SearchUserRespositories -> {
-                    getUserRepositories(homeIntents.params as String).collect{
-                        _uiState.value = it
+                    getUserRepositories(homeIntents.params as String).collect{ repositories ->
+                        when(repositories){
+                            is Resource.Error -> {
+
+                                Timber.tag(TAG).e("Error occurred when searching for a repositories ${repositories.error?.localizedMessage}")
+
+                                uiState.value = uiState.value.copy(
+                                    error = repositories.error?.localizedMessage,
+                                    repositories = repositories.data,
+                                    isLoading = false
+
+                                )
+                            }
+                            is Resource.Loading -> {
+                                uiState.value = uiState.value.copy(
+                                    isLoading = true
+                                )
+                            }
+                            is Resource.Success -> {
+
+                                Timber.tag(TAG).i("Search success value is : ${repositories.data}")
+
+                                uiState.value = uiState.value.copy(
+                                    isLoading = false,
+                                    repositories = repositories.data
+                                )
+                            }
+                        }
                     }
                 }
                 is HomeIntents.SearchFollowers -> {
-                    getFollowers(homeIntents.params as String).collect{
-                        _uiState.value = it
+                    getFollowers(homeIntents.params as String).collect{ followers ->
+                        when(followers){
+                            is Resource.Error -> {
+
+                                Timber.tag(TAG).e("Error occurred when seaching for a followers ${followers.error}")
+
+
+                                uiState.value = uiState.value.copy(
+                                    error = followers.error?.localizedMessage,
+                                    userAndFollow = followers.data,
+                                    isLoading = false
+
+                                )
+                            }
+                            is Resource.Loading -> {
+                                uiState.value = uiState.value.copy(
+                                    isLoading = true
+                                )
+                            }
+                            is Resource.Success -> {
+                                Timber.tag(TAG).i("Search success value is : ${followers.data}")
+
+                                uiState.value = uiState.value.copy(
+                                    isLoading = false,
+                                    userAndFollow = followers.data
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-    }
 
     private fun getUser(userName : String) = networkBoundResource(
         // pass in the logic to query data from the database
@@ -119,6 +212,10 @@ class HomeViewModel @Inject constructor(
         // default is true
         shouldFetch = {true}
     )
+
+    companion object {
+        private const val TAG = "HomeViewModel"
+    }
 
 }
 
